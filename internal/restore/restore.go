@@ -16,11 +16,11 @@ import (
 
 // Options configures the restore operation.
 type Options struct {
-	PgConfig       *pg.Config
-	RestoreOptions pg.RestoreOptions
-	Backend        storage.Backend
-	StorageKey     string
-	DecryptionKey  []byte // 32 bytes for AES-256, nil if not encrypted
+	PgConfig           *pg.Config
+	RestoreOptions     pg.RestoreOptions
+	Backend            storage.Backend
+	StorageKey         string
+	DecryptionPassword string
 }
 
 // Run executes a restore operation.
@@ -43,10 +43,10 @@ func Run(ctx context.Context, opts Options) error {
 
 	// Decrypt if encrypted
 	if strings.HasSuffix(opts.StorageKey, ".enc") {
-		if len(opts.DecryptionKey) != crypto.KeySize {
-			return fmt.Errorf("decryption key must be %d bytes", crypto.KeySize)
+		if opts.DecryptionPassword == "" {
+			return fmt.Errorf("decryption password required for encrypted backup")
 		}
-		decrypted, err := crypto.DecryptBytes(data, opts.DecryptionKey)
+		decrypted, err := crypto.DecryptWithPassword(data, opts.DecryptionPassword)
 		if err != nil {
 			return fmt.Errorf("decryption failed: %w", err)
 		}

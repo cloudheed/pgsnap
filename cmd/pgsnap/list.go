@@ -27,7 +27,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create storage backend
-	backend, err := createBackend()
+	backend, err := createBackend(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}

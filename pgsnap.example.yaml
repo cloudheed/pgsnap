@@ -14,7 +14,7 @@ postgres:
 
 # Storage backend settings
 storage:
-  # Backend type: local, s3, gcs, azure
+  # Backend type: local, s3
   type: local
 
   # Local filesystem storage
@@ -22,12 +22,12 @@ storage:
     path: ./backups
 
   # S3 storage (when type: s3)
-  # s3:
-  #   bucket: my-backup-bucket
-  #   region: us-east-1
-  #   endpoint: ""  # Custom endpoint for S3-compatible storage
-  #   access_key: ""  # Or use PGSNAP_STORAGE_S3_ACCESS_KEY
-  #   secret_key: ""  # Or use PGSNAP_STORAGE_S3_SECRET_KEY
+  s3:
+    bucket: my-backup-bucket
+    region: us-east-1
+    endpoint: ""  # Custom endpoint for S3-compatible storage (MinIO, etc.)
+    access_key: ""  # Or use PGSNAP_STORAGE_S3_ACCESS_KEY
+    secret_key: ""  # Or use PGSNAP_STORAGE_S3_SECRET_KEY
 
 # Backup settings
 backup:
@@ -35,12 +35,13 @@ backup:
   compress: true
 
   # Enable encryption (AES-256-GCM)
+  # Requires PGSNAP_ENCRYPTION_PASSWORD environment variable
   encrypt: false
 
   # Number of parallel workers for backup operations
   parallel: 4
 
-  # Automatically delete backups older than this (0 = disabled)
+  # Automatically delete backups older than this (days, 0 = disabled)
   retention_days: 30
 
 # Logging settings

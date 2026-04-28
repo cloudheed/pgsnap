@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -25,12 +26,19 @@ const (
 
 	// PBKDF2Iterations is the number of iterations for key derivation.
 	PBKDF2Iterations = 100000
+
+	// HeaderSize is salt + nonce size.
+	HeaderSize = SaltSize + NonceSize
+
+	// MagicBytes identifies encrypted files.
+	MagicBytes uint32 = 0x50475345 // "PGSE" - PGSnap Encrypted
 )
 
 // Errors
 var (
 	ErrInvalidKey       = errors.New("invalid key size")
 	ErrDecryptionFailed = errors.New("decryption failed")
+	ErrInvalidFormat    = errors.New("invalid encrypted file format")
 )
 
 // DeriveKey derives a key from a password using PBKDF2.
@@ -45,6 +53,141 @@ func DeriveKey(password string, salt []byte) ([]byte, []byte, error) {
 
 	key := pbkdf2.Key([]byte(password), salt, PBKDF2Iterations, KeySize, sha256.New)
 	return key, salt, nil
+}
+
+// EncryptWithPassword encrypts data with a password.
+// Format: [magic:4][salt:16][nonce:12][ciphertext...]
+func EncryptWithPassword(plaintext []byte, password string) ([]byte, error) {
+	// Derive key with new salt
+	key, salt, err := DeriveKey(password, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, NonceSize)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	// Build output: magic + salt + nonce + ciphertext
+	ciphertext := aead.Seal(nil, nonce, plaintext, nil)
+
+	result := make([]byte, 4+SaltSize+NonceSize+len(ciphertext))
+	binary.BigEndian.PutUint32(result[0:4], MagicBytes)
+	copy(result[4:4+SaltSize], salt)
+	copy(result[4+SaltSize:4+SaltSize+NonceSize], nonce)
+	copy(result[4+SaltSize+NonceSize:], ciphertext)
+
+	return result, nil
+}
+
+// DecryptWithPassword decrypts data with a password.
+// Reads salt from the encrypted data header.
+func DecryptWithPassword(ciphertext []byte, password string) ([]byte, error) {
+	minSize := 4 + SaltSize + NonceSize + 16 // magic + salt + nonce + min auth tag
+	if len(ciphertext) < minSize {
+		return nil, ErrInvalidFormat
+	}
+
+	// Verify magic bytes
+	magic := binary.BigEndian.Uint32(ciphertext[0:4])
+	if magic != MagicBytes {
+		return nil, ErrInvalidFormat
+	}
+
+	// Extract salt and nonce
+	salt := ciphertext[4 : 4+SaltSize]
+	nonce := ciphertext[4+SaltSize : 4+SaltSize+NonceSize]
+	encData := ciphertext[4+SaltSize+NonceSize:]
+
+	// Derive key with extracted salt
+	key, _, err := DeriveKey(password, salt)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := aead.Open(nil, nonce, encData, nil)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	return plaintext, nil
+}
+
+// EncryptBytes encrypts data with the given key (legacy, for direct key use).
+func EncryptBytes(plaintext, key []byte) ([]byte, error) {
+	if len(key) != KeySize {
+		return nil, ErrInvalidKey
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := make([]byte, NonceSize)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+
+	ciphertext := aead.Seal(nonce, nonce, plaintext, nil)
+	return ciphertext, nil
+}
+
+// DecryptBytes decrypts data with the given key (legacy, for direct key use).
+func DecryptBytes(ciphertext, key []byte) ([]byte, error) {
+	if len(key) != KeySize {
+		return nil, ErrInvalidKey
+	}
+
+	if len(ciphertext) < NonceSize {
+		return nil, ErrDecryptionFailed
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := ciphertext[:NonceSize]
+	ciphertext = ciphertext[NonceSize:]
+
+	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, ErrDecryptionFailed
+	}
+
+	return plaintext, nil
 }
 
 // Encrypter wraps a writer with AES-256-GCM encryption.
@@ -169,60 +312,4 @@ func (d *Decrypter) Read(p []byte) (int, error) {
 	n := copy(p, d.plaintext[d.offset:])
 	d.offset += n
 	return n, nil
-}
-
-// EncryptBytes encrypts data with the given key.
-func EncryptBytes(plaintext, key []byte) ([]byte, error) {
-	if len(key) != KeySize {
-		return nil, ErrInvalidKey
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, NonceSize)
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, err
-	}
-
-	ciphertext := aead.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
-}
-
-// DecryptBytes decrypts data with the given key.
-func DecryptBytes(ciphertext, key []byte) ([]byte, error) {
-	if len(key) != KeySize {
-		return nil, ErrInvalidKey
-	}
-
-	if len(ciphertext) < NonceSize {
-		return nil, ErrDecryptionFailed
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := ciphertext[:NonceSize]
-	ciphertext = ciphertext[NonceSize:]
-
-	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, ErrDecryptionFailed
-	}
-
-	return plaintext, nil
 }

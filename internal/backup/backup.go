@@ -4,6 +4,8 @@ package backup
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -15,25 +17,26 @@ import (
 
 // Backup represents a backup operation result.
 type Backup struct {
-	ID           string    `json:"id"`
-	Database     string    `json:"database"`
-	StartedAt    time.Time `json:"started_at"`
-	CompletedAt  time.Time `json:"completed_at"`
-	Size         int64     `json:"size"`
-	Compressed   bool      `json:"compressed"`
-	Encrypted    bool      `json:"encrypted"`
-	StorageKey   string    `json:"storage_key"`
-	PgVersion    string    `json:"pg_version,omitempty"`
+	ID          string    `json:"id"`
+	Database    string    `json:"database"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at"`
+	Size        int64     `json:"size"`
+	Compressed  bool      `json:"compressed"`
+	Encrypted   bool      `json:"encrypted"`
+	StorageKey  string    `json:"storage_key"`
+	PgVersion   string    `json:"pg_version,omitempty"`
+	Checksum    string    `json:"checksum"`
 }
 
 // Options configures the backup operation.
 type Options struct {
-	PgConfig       *pg.Config
-	DumpOptions    pg.DumpOptions
-	Backend        storage.Backend
-	Compress       bool
-	Encrypt        bool
-	EncryptionKey  []byte // 32 bytes for AES-256
+	PgConfig           *pg.Config
+	DumpOptions        pg.DumpOptions
+	Backend            storage.Backend
+	Compress           bool
+	Encrypt            bool
+	EncryptionPassword string
 }
 
 // Run executes a backup operation.
@@ -56,6 +59,10 @@ func Run(ctx context.Context, opts Options) (*Backup, error) {
 
 	data := dumpBuf.Bytes()
 
+	// Calculate checksum of raw dump
+	checksum := sha256.Sum256(data)
+	checksumHex := hex.EncodeToString(checksum[:])
+
 	// Compress if enabled
 	if opts.Compress {
 		compressed, err := compress.CompressBytes(data, compress.DefaultCompression)
@@ -65,12 +72,12 @@ func Run(ctx context.Context, opts Options) (*Backup, error) {
 		data = compressed
 	}
 
-	// Encrypt if enabled
+	// Encrypt if enabled (now uses password-based encryption with embedded salt)
 	if opts.Encrypt {
-		if len(opts.EncryptionKey) != crypto.KeySize {
-			return nil, fmt.Errorf("encryption key must be %d bytes", crypto.KeySize)
+		if opts.EncryptionPassword == "" {
+			return nil, fmt.Errorf("encryption password required")
 		}
-		encrypted, err := crypto.EncryptBytes(data, opts.EncryptionKey)
+		encrypted, err := crypto.EncryptWithPassword(data, opts.EncryptionPassword)
 		if err != nil {
 			return nil, fmt.Errorf("encryption failed: %w", err)
 		}
@@ -95,6 +102,7 @@ func Run(ctx context.Context, opts Options) (*Backup, error) {
 		Encrypted:   opts.Encrypt,
 		StorageKey:  storageKey,
 		PgVersion:   pgVersion,
+		Checksum:    checksumHex,
 	}, nil
 }
 

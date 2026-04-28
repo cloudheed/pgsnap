@@ -7,10 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/cloudheed/pgsnap/internal/backup"
-	"github.com/cloudheed/pgsnap/internal/crypto"
 	"github.com/cloudheed/pgsnap/internal/pg"
+	"github.com/cloudheed/pgsnap/internal/retention"
 	"github.com/cloudheed/pgsnap/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ func runBackup(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create storage backend
-	backend, err := createBackend()
+	backend, err := createBackend(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
@@ -54,13 +55,13 @@ func runBackup(cmd *cobra.Command, args []string) error {
 		Encrypt:     cfg.Backup.Encrypt,
 	}
 
-	// Handle encryption key
+	// Handle encryption password
 	if opts.Encrypt {
-		key, err := getEncryptionKey()
-		if err != nil {
-			return err
+		password := os.Getenv("PGSNAP_ENCRYPTION_PASSWORD")
+		if password == "" {
+			return fmt.Errorf("PGSNAP_ENCRYPTION_PASSWORD environment variable required for encryption")
 		}
-		opts.EncryptionKey = key
+		opts.EncryptionPassword = password
 	}
 
 	fmt.Printf("Starting backup of database '%s'...\n", pgConfig.Database)
@@ -73,35 +74,46 @@ func runBackup(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Backup completed successfully!\n")
 	fmt.Printf("  ID:         %s\n", result.ID)
 	fmt.Printf("  Database:   %s\n", result.Database)
-	fmt.Printf("  Size:       %d bytes\n", result.Size)
+	fmt.Printf("  Size:       %s\n", formatSize(result.Size))
 	fmt.Printf("  Compressed: %v\n", result.Compressed)
 	fmt.Printf("  Encrypted:  %v\n", result.Encrypted)
+	fmt.Printf("  Checksum:   %s\n", result.Checksum[:16]+"...")
 	fmt.Printf("  Duration:   %s\n", result.CompletedAt.Sub(result.StartedAt))
+
+	// Apply retention policy if configured
+	if cfg.Backup.RetentionDays > 0 {
+		fmt.Printf("\nApplying retention policy (%d days)...\n", cfg.Backup.RetentionDays)
+
+		policy := retention.Policy{
+			MaxAge: time.Duration(cfg.Backup.RetentionDays) * 24 * time.Hour,
+		}
+
+		retResult, err := retention.Apply(ctx, backend, policy)
+		if err != nil {
+			fmt.Printf("Warning: retention policy failed: %v\n", err)
+		} else if len(retResult.Deleted) > 0 {
+			fmt.Printf("Deleted %d old backup(s)\n", len(retResult.Deleted))
+		}
+	}
 
 	return nil
 }
 
-func createBackend() (storage.Backend, error) {
+func createBackend(ctx context.Context) (storage.Backend, error) {
 	switch cfg.Storage.Type {
 	case "local":
 		return storage.NewLocalBackend(cfg.Storage.Local.Path)
+	case "s3":
+		return storage.NewS3Backend(ctx, storage.S3Options{
+			Bucket:    cfg.Storage.S3.Bucket,
+			Region:    cfg.Storage.S3.Region,
+			Endpoint:  cfg.Storage.S3.Endpoint,
+			AccessKey: cfg.Storage.S3.AccessKey,
+			SecretKey: cfg.Storage.S3.SecretKey,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", cfg.Storage.Type)
 	}
-}
-
-func getEncryptionKey() ([]byte, error) {
-	password := os.Getenv("PGSNAP_ENCRYPTION_PASSWORD")
-	if password == "" {
-		return nil, fmt.Errorf("PGSNAP_ENCRYPTION_PASSWORD environment variable required for encryption")
-	}
-
-	key, _, err := crypto.DeriveKey(password, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive encryption key: %w", err)
-	}
-
-	return key, nil
 }
 
 func init() {

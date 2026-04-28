@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/cloudheed/pgsnap/internal/config"
-	"github.com/cloudheed/pgsnap/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -23,11 +22,11 @@ var rootCmd = &cobra.Command{
 	Long: `pgsnap is a fast, reliable PostgreSQL backup and restore tool.
 
 It supports multiple storage backends (local, S3, GCS, Azure) and provides
-features like compression, encryption, and incremental backups.`,
+features like compression, encryption, and scheduled backups.`,
 	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip config loading for help/version
-		if cmd.Name() == "help" || cmd.Name() == "version" {
+		// Skip config loading for help/version/completion
+		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == "completion" {
 			return nil
 		}
 
@@ -36,12 +35,6 @@ features like compression, encryption, and incremental backups.`,
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-
-		// Initialize logger (will be used by subcommands)
-		_ = logger.New(logger.Options{
-			Level:  cfg.Log.Level,
-			Format: cfg.Log.Format,
-		})
 
 		return nil
 	},
@@ -55,4 +48,6 @@ func init() {
 	rootCmd.AddCommand(restoreCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(verifyCmd)
+	rootCmd.AddCommand(pruneCmd)
+	rootCmd.AddCommand(scheduleCmd)
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/cloudheed/pgsnap/internal/pg"
 	"github.com/cloudheed/pgsnap/internal/restore"
-	"github.com/cloudheed/pgsnap/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +29,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create storage backend
-	backend, err := createBackend()
+	backend, err := createBackend(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
@@ -59,13 +58,13 @@ func runRestore(cmd *cobra.Command, args []string) error {
 		StorageKey:     storageKey,
 	}
 
-	// Handle decryption key if backup is encrypted
+	// Handle decryption password if backup is encrypted
 	if isEncrypted(storageKey) {
-		key, err := getEncryptionKey()
-		if err != nil {
-			return err
+		password := os.Getenv("PGSNAP_ENCRYPTION_PASSWORD")
+		if password == "" {
+			return fmt.Errorf("PGSNAP_ENCRYPTION_PASSWORD environment variable required for encrypted backup")
 		}
-		opts.DecryptionKey = key
+		opts.DecryptionPassword = password
 	}
 
 	fmt.Printf("Restoring backup '%s' to database '%s'...\n", backupID, pgConfig.Database)
@@ -77,31 +76,6 @@ func runRestore(cmd *cobra.Command, args []string) error {
 	fmt.Println("Restore completed successfully!")
 
 	return nil
-}
-
-func findBackupKey(ctx context.Context, backend interface {
-	Stat(context.Context, string) (*storage.ObjectInfo, error)
-}, backupID string) (string, error) {
-	// Try common extensions in order of preference
-	extensions := []string{
-		".dump.gz.enc",
-		".dump.gz",
-		".dump.enc",
-		".dump",
-	}
-
-	for _, ext := range extensions {
-		key := backupID + ext
-		if _, err := backend.Stat(ctx, key); err == nil {
-			return key, nil
-		}
-	}
-
-	return "", fmt.Errorf("backup not found: %s", backupID)
-}
-
-func isEncrypted(key string) bool {
-	return len(key) > 4 && key[len(key)-4:] == ".enc"
 }
 
 func init() {
