@@ -1,0 +1,52 @@
+# pgsnap configuration example
+# Copy this file to pgsnap.yaml and customize as needed.
+# All settings can be overridden via environment variables with PGSNAP_ prefix.
+# Example: PGSNAP_POSTGRES_HOST=localhost
+
+# PostgreSQL connection settings
+postgres:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: ""  # Or use PGSNAP_POSTGRES_PASSWORD env var
+  database: postgres
+  sslmode: prefer  # disable, allow, prefer, require, verify-ca, verify-full
+
+# Storage backend settings
+storage:
+  # Backend type: local, s3, gcs, azure
+  type: local
+
+  # Local filesystem storage
+  local:
+    path: ./backups
+
+  # S3 storage (when type: s3)
+  # s3:
+  #   bucket: my-backup-bucket
+  #   region: us-east-1
+  #   endpoint: ""  # Custom endpoint for S3-compatible storage
+  #   access_key: ""  # Or use PGSNAP_STORAGE_S3_ACCESS_KEY
+  #   secret_key: ""  # Or use PGSNAP_STORAGE_S3_SECRET_KEY
+
+# Backup settings
+backup:
+  # Enable compression (gzip)
+  compress: true
+
+  # Enable encryption (AES-256-GCM)
+  encrypt: false
+
+  # Number of parallel workers for backup operations
+  parallel: 4
+
+  # Automatically delete backups older than this (0 = disabled)
+  retention_days: 30
+
+# Logging settings
+log:
+  # Log level: debug, info, warn, error
+  level: info
+
+  # Log format: json, console
+  format: console
