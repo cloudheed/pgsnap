@@ -1,5 +1,10 @@
 # pgsnap
 
+[![CI](https://github.com/cloudheed/pgsnap/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudheed/pgsnap/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cloudheed/pgsnap)](https://goreportcard.com/report/github.com/cloudheed/pgsnap)
+[![Go Reference](https://pkg.go.dev/badge/github.com/cloudheed/pgsnap.svg)](https://pkg.go.dev/github.com/cloudheed/pgsnap)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A fast, reliable PostgreSQL backup and restore tool.
 
 ## Features
