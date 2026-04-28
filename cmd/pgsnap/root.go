@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/cloudheed/pgsnap/internal/config"
 	"github.com/cloudheed/pgsnap/internal/logger"
@@ -16,7 +15,6 @@ var (
 	// Configuration
 	cfgFile string
 	cfg     *config.Config
-	log     *logger.Logger
 )
 
 var rootCmd = &cobra.Command{
@@ -39,7 +37,8 @@ features like compression, encryption, and incremental backups.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		log = logger.New(logger.Options{
+		// Initialize logger (will be used by subcommands)
+		_ = logger.New(logger.Options{
 			Level:  cfg.Log.Level,
 			Format: cfg.Log.Format,
 		})
@@ -58,7 +57,3 @@ func init() {
 	rootCmd.AddCommand(verifyCmd)
 }
 
-func exitWithError(msg string, err error) {
-	fmt.Fprintf(os.Stderr, "Error: %s: %v\n", msg, err)
-	os.Exit(1)
-}

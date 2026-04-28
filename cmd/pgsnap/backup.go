@@ -1,3 +1,4 @@
+// Package main provides the pgsnap CLI entrypoint.
 package main
 
 import (
