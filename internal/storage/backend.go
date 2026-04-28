@@ -1,3 +1,4 @@
+// Package storage provides storage backend implementations for backup data.
 package storage
 
 import (
@@ -8,11 +9,11 @@ import (
 
 // ObjectInfo contains metadata about a stored object.
 type ObjectInfo struct {
-	Key          string
-	Size         int64
-	LastModified time.Time
-	ContentType  string
 	Metadata     map[string]string
+	Key          string
+	ContentType  string
+	LastModified time.Time
+	Size         int64
 }
 
 // Backend defines the interface for storage backends.

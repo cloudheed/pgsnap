@@ -1,3 +1,4 @@
+// Package storage provides storage backend implementations for backup data.
 package storage
 
 import (
@@ -22,7 +23,7 @@ func NewLocalBackend(basePath string) (*LocalBackend, error) {
 		return nil, fmt.Errorf("failed to resolve path: %w", err)
 	}
 
-	if err := os.MkdirAll(absPath, 0750); err != nil {
+	if err := os.MkdirAll(absPath, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create base directory: %w", err)
 	}
 
@@ -39,7 +40,7 @@ func (b *LocalBackend) Put(ctx context.Context, key string, r io.Reader, size in
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -54,13 +55,13 @@ func (b *LocalBackend) Put(ctx context.Context, key string, r io.Reader, size in
 	success := false
 	defer func() {
 		if !success {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
 	// Copy data to temp file
 	if _, err := io.Copy(tmpFile, r); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("failed to write data: %w", err)
 	}
 
@@ -85,7 +86,7 @@ func (b *LocalBackend) Get(ctx context.Context, key string) (io.ReadCloser, erro
 
 	fullPath := b.keyToPath(key)
 
-	f, err := os.Open(fullPath)
+	f, err := os.Open(fullPath) //nolint:gosec // key is validated above
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotFound

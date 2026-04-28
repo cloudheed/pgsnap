@@ -1,3 +1,4 @@
+// Package logger provides logging utilities for pgsnap.
 package logger
 
 import (
@@ -15,9 +16,9 @@ type Logger struct {
 
 // Options configures the logger.
 type Options struct {
+	Output io.Writer
 	Level  string // debug, info, warn, error
 	Format string // json, console
-	Output io.Writer
 }
 
 // New creates a new Logger with the given options.

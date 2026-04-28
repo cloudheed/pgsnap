@@ -15,7 +15,7 @@ func TestLocalBackend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	backend, err := NewLocalBackend(tmpDir)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestLocalBackend(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Get failed: %v", err)
 				}
-				defer rc.Close()
+				defer func() { _ = rc.Close() }()
 
 				got, err := io.ReadAll(rc)
 				if err != nil {
@@ -126,11 +126,11 @@ func TestLocalBackend(t *testing.T) {
 
 		// Create test files
 		files := map[string][]byte{
-			"a.txt":         []byte("a"),
-			"b.txt":         []byte("b"),
-			"prefix/c.txt":  []byte("c"),
-			"prefix/d.txt":  []byte("d"),
-			"other/e.txt":   []byte("e"),
+			"a.txt":        []byte("a"),
+			"b.txt":        []byte("b"),
+			"prefix/c.txt": []byte("c"),
+			"prefix/d.txt": []byte("d"),
+			"other/e.txt":  []byte("e"),
 		}
 
 		for key, content := range files {
@@ -269,7 +269,7 @@ func TestLocalBackend(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		got, err := io.ReadAll(rc)
 		if err != nil {

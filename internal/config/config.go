@@ -1,3 +1,4 @@
+// Package config provides configuration loading and management for pgsnap.
 package config
 
 import (
@@ -25,11 +26,11 @@ type Config struct {
 // PostgresConfig holds PostgreSQL connection settings.
 type PostgresConfig struct {
 	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
 	Database string `mapstructure:"database"`
 	SSLMode  string `mapstructure:"sslmode"`
+	Port     int    `mapstructure:"port"`
 }
 
 // StorageConfig holds storage backend settings.
@@ -59,10 +60,10 @@ type S3StorageConfig struct {
 
 // BackupConfig holds backup operation settings.
 type BackupConfig struct {
-	Compress   bool   `mapstructure:"compress"`
-	Encrypt    bool   `mapstructure:"encrypt"`
-	Parallel   int    `mapstructure:"parallel"`
-	RetentionDays int `mapstructure:"retention_days"`
+	Parallel      int  `mapstructure:"parallel"`
+	RetentionDays int  `mapstructure:"retention_days"`
+	Compress      bool `mapstructure:"compress"`
+	Encrypt       bool `mapstructure:"encrypt"`
 }
 
 // LogConfig holds logging settings.
